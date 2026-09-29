@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROBO DELIVERY : หุ่นจิ๋วส่งของ ฝ่าด่านคำสั่ง (เวอร์ชันเล่นง่าย)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            font-family: 'Prompt', sans-serif;
+            user-select: none;
+        }
+        
+        .grid-cell {
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .robot-img {
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .pulse-glow {
+            animation: pulse-animation 1.8s infinite;
+        }
+
+        @keyframes pulse-animation {
+            0% { box-shadow: 0 0 0 0px rgba(59, 130, 246, 0.6); }
+            100% { box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
+        }
+
+        .target-glow {
+            animation: target-pulse 1.5s infinite alternate;
+        }
+
+        @keyframes target-pulse {
+            0% { border-color: rgba(56, 189, 248, 0.4); background-color: rgba(56, 189, 248, 0.05); }
+            100% { border-color: rgba(56, 189, 248, 0.9); background-color: rgba(56, 189, 248, 0.25); }
+        }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        #particleCanvas {
+            pointer-events: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 sticky top-0 z-30 shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid font-bold fa-robot text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300 bg-clip-text text-transparent">
+                        ROBO DELIVERY
+                    </h1>
+                    <p class="text-xs text-slate-400 font-medium">หุ่นจิ๋วส่งของ ฝ่าด่านคำสั่ง (โหมดเล่นง่าย)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Level Indicator -->
+                <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl px-3 py-1.5 flex items-center space-x-2">
+                    <i class="fa-solid fa-map-pin text-amber-400 text-sm"></i>
+                    <span id="levelDisplay" class="text-sm font-semibold text-slate-200">ด่านที่ 1</span>
+                </div>
+
+                <!-- Hint Button -->
+                <button onclick="showHintModal()" class="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-lightbulb text-amber-400 animate-pulse"></i>
+                    <span>คำใบ้</span>
+                </button>
+
+                <!-- Sound Toggle -->
+                <button id="soundBtn" onclick="toggleSound()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2.5 rounded-xl text-slate-300 hover:text-white transition" title="เปิด/ปิด เสียง">
+                    <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+                </button>
+
+                <!-- CT Guide Button -->
+                <button onclick="toggleModal('ctModal')" class="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-300 hover:text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-medium flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-brain text-indigo-300"></i>
+                    <span class="hidden sm:inline">การคิดเชิงคำนวณ</span>
+                </button>
+
+                <!-- Stage Select Button -->
+                <button onclick="toggleModal('levelModal')" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-md shadow-blue-600/30 transition flex items-center space-x-2">
+                    <i class="fa-solid fa-bars-staggered"></i>
+                    <span>เลือกด่าน</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 my-auto">
+
+        <!-- LEFT COLUMN: Grid & Instructions (6 Cols) -->
+        <section class="lg:col-span-6 flex flex-col space-y-4">
+            
+            <!-- Stage Info Banner -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between">
+                    <h2 id="stageTitle" class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-box text-blue-400"></i> ภารกิจส่งพัสดุชิ้นแรก
+                    </h2>
+                    <div id="starTarget" class="flex text-amber-400 space-x-1 text-sm">
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+                </div>
+                <p id="stageGoalText" class="text-xs sm:text-sm text-slate-300">
+                    โปรแกรมคำสั่งให้หุ่นยนต์เดินหน้าไปเก็บพัสดุแล้วนำไปส่งที่บ้านเป้าหมาย!
+                </p>
+                
+                <!-- Easy Guidance Tooltip -->
+                <div id="guideBanner" class="bg-blue-950/40 border border-blue-500/30 p-2.5 rounded-xl text-xs text-blue-300 flex items-start space-x-2">
+                    <i class="fa-solid fa-circle-info text-blue-400 text-sm mt-0.5"></i>
+                    <span id="guideBannerText">ช่องที่มี **เส้นขอบเรืองแสงสีฟ้า** คือทิศทางที่หุ่นยนต์กำลังหันไป หากกด "เดินหน้า" หุ่นจะไปช่องนั้น!</span>
+                </div>
+
+                <div class="flex items-center space-x-4 text-xs font-medium text-slate-400 pt-1 border-t border-slate-800/80">
+                    <span id="parcelCountText"><i class="fa-solid fa-cube text-amber-400 mr-1"></i> พัสดุ: 0/1</span>
+                    <span id="targetBlocksText"><i class="fa-solid fa-code text-indigo-400 mr-1"></i> คำสั่งแนะนำ: ≤ 4 บล็อก</span>
+                </div>
+            </div>
+
+            <!-- Game Map Viewport -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden min-h-[320px] sm:min-h-[380px]">
+                
+                <!-- Grid Map Container -->
+                <div id="gridBoard" class="grid gap-1 sm:gap-2 p-2 sm:p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl shadow-inner relative">
+                    <!-- Dynamic grid cells injected via JS -->
+                </div>
+
+                <!-- Simulation Overlay Status -->
+                <div id="statusToast" class="hidden absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-800/95 border border-slate-700 text-slate-200 px-4 py-2 rounded-full text-xs sm:text-sm shadow-xl font-medium flex items-center space-x-2 transition-all">
+                    <div class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping"></div>
+                    <span id="statusToastText">กำลังประมวลผล...</span>
+                </div>
+            </div>
+
+            <!-- Visual Legend (ช่วยดูสัญลักษณ์) -->
+            <div class="bg-slate-900/60 border border-slate-800/60 rounded-xl p-2.5 flex flex-wrap items-center justify-around gap-2 text-[11px] text-slate-400">
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-robot text-blue-400"></i> หุ่นยนต์</span>
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-box text-amber-400"></i> พัสดุ</span>
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-house-flag text-indigo-400"></i> บ้านส่งของ</span>
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-arrow-up text-sky-400"></i> ช่องหน้าหุ่น</span>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN: Coding Palette & Command Pipeline (6 Cols) -->
+        <section class="lg:col-span-6 flex flex-col space-y-4">
+            
+            <!-- Command Palette Header -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-slate-300 flex items-center space-x-2">
+                        <i class="fa-solid fa-cubes text-indigo-400"></i>
+                        <span>คลังคำสั่ง (คลิกเพื่อเพิ่มคำสั่ง)</span>
+                    </h3>
+                </div>
+
+                <!-- Command Buttons Deck -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <button onclick="addCommand('move')" class="bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 hover:border-blue-500 text-blue-300 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-arrow-up text-blue-400 text-base"></i>
+                        <span>เดินหน้า</span>
+                    </button>
+                    <button onclick="addCommand('left')" class="bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 hover:border-amber-500 text-amber-300 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-rotate-left text-amber-400 text-base"></i>
+                        <span>เลี้ยวซ้าย</span>
+                    </button>
+                    <button onclick="addCommand('right')" class="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 hover:border-emerald-500 text-emerald-300 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-rotate-right text-emerald-400 text-base"></i>
+                        <span>เลี้ยวขวา</span>
+                    </button>
+                    <button onclick="addCommand('pickup')" class="bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 hover:border-purple-500 text-purple-300 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-hand-holding-box text-purple-400 text-base"></i>
+                        <span>เก็บพัสดุ</span>
+                    </button>
+                    <button onclick="addCommand('dropoff')" class="bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 hover:border-rose-500 text-rose-300 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-house-circle-check text-rose-400 text-base"></i>
+                        <span>ส่งพัสดุ</span>
+                    </button>
+                    <button id="loopBtn" onclick="addLoopCommand()" class="bg-teal-600/20 hover:bg-teal-600/30 border border-teal-500/40 hover:border-teal-500 text-teal-300 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-arrows-spin text-teal-400 text-base"></i>
+                        <span>วนซ้ำ (Loop)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Command Queue / Timeline Box -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1 flex flex-col justify-between space-y-3 min-h-[220px]">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-list-check text-sky-400"></i>
+                        <span class="text-sm font-bold text-slate-200">ลำดับคำสั่งที่เลือกไว้</span>
+                    </div>
+                    <div class="flex items-center space-x-3 text-xs">
+                        <span id="queueCount" class="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg">0 คำสั่ง</span>
+                        <button onclick="undoLastCommand()" class="text-amber-400 hover:text-amber-300 transition flex items-center space-x-1" title="ย้อนกลับคำสั่งล่าสุด">
+                            <i class="fa-solid fa-rotate-left"></i>
+                            <span>ย้อนกลับ</span>
+                        </button>
+                        <button onclick="clearCommands()" class="text-rose-400 hover:text-rose-300 transition flex items-center space-x-1">
+                            <i class="fa-solid fa-trash-can"></i>
+                            <span>ล้างตาราง</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Command Sequence List -->
+                <div id="commandContainer" class="flex-1 overflow-y-auto max-h-[200px] p-2 bg-slate-950/60 border border-slate-800/80 rounded-xl grid grid-cols-1 gap-2 align-content-start">
+                    <!-- Empty Placeholder -->
+                    <div id="emptyPlaceholder" class="h-28 flex flex-col items-center justify-center text-slate-500 space-y-1">
+                        <i class="fa-solid fa-arrow-pointer text-2xl mb-1 text-slate-600"></i>
+                        <span class="text-xs">กดปุ่มสีข้างบนเพื่อเรียงคำสั่งให้หุ่นจิ๋ว</span>
+                    </div>
+                </div>
+
+                <!-- Control Buttons Deck -->
+                <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                    
+                    <!-- Speed Selector -->
+                    <div class="flex items-center space-x-1 bg-slate-800 p-1 rounded-xl border border-slate-700/80 text-xs text-slate-400">
+                        <span class="px-1 text-[11px]">ความเร็ว:</span>
+                        <button onclick="setSpeed(600)" id="spd1" class="px-2 py-1 rounded-lg bg-blue-600 text-white font-medium">1x</button>
+                        <button onclick="setSpeed(350)" id="spd2" class="px-2 py-1 rounded-lg hover:text-white">2x</button>
+                        <button onclick="setSpeed(180)" id="spd3" class="px-2 py-1 rounded-lg hover:text-white">3x</button>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex items-center space-x-2">
+                        <button id="stepBtn" onclick="stepSim()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 flex items-center space-x-1">
+                            <i class="fa-solid fa-forward-step text-sky-400"></i>
+                            <span>ทีละสเต็ป</span>
+                        </button>
+                        <button id="resetBtn" onclick="resetSim()" class="bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition active:scale-95 flex items-center space-x-1">
+                            <i class="fa-solid fa-rotate-left"></i>
+                            <span>รีเซ็ต</span>
+                        </button>
+                        <button id="runBtn" onclick="runSim()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/30 transition active:scale-95 flex items-center space-x-2">
+                            <i class="fa-solid fa-play"></i>
+                            <span>เริ่มเดิน!</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-3 text-center text-xs text-slate-500">
+        ROBO DELIVERY &copy; 2026 - สื่อการเรียนรู้พัฒนาการคิดเชิงคำนวณแบบเข้าใจง่าย
+    </footer>
+
+    <!-- MODAL: HINT MODAL -->
+    <div id="hintModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl flex flex-col space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-amber-300 flex items-center space-x-2">
+                    <i class="fa-solid fa-lightbulb text-amber-400"></i>
+                    <span>คำใบ้การวางแผน</span>
+                </h3>
+                <button onclick="toggleModal('hintModal')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60 space-y-2 text-sm text-slate-200">
+                <p id="hintText" class="leading-relaxed">...</p>
+            </div>
+
+            <button onclick="toggleModal('hintModal')" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold p-3 rounded-xl transition">
+                เข้าใจแล้ว ลองทำดูเลย!
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: LEVEL SELECTOR -->
+    <div id="levelModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl flex flex-col space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-slate-100 flex items-center space-x-2">
+                    <i class="fa-solid fa-map text-blue-400"></i>
+                    <span>เลือกด่านภารกิจ</span>
+                </h3>
+                <button onclick="toggleModal('levelModal')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Level Grid Buttons -->
+            <div id="levelGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto p-1">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: COMPUTATIONAL THINKING GUIDE -->
+    <div id="ctModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl flex flex-col space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-indigo-300 flex items-center space-x-2">
+                    <i class="fa-solid fa-brain text-amber-400"></i>
+                    <span>หลักการคิดเชิงคำนวณ (Computational Thinking)</span>
+                </h3>
+                <button onclick="toggleModal('ctModal')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm text-slate-300">
+                <div class="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/50 space-y-1">
+                    <h4 class="font-bold text-sky-400 flex items-center gap-2">
+                        <i class="fa-solid fa-scissors"></i> 1. การย่อยปัญหา (Decomposition)
+                    </h4>
+                    <p class="text-slate-400 text-xs">แบ่งงานออกเป็นสเต็ปย่อยๆ เช่น 1) เดินไปหาพัสดุ 2) เก็บพัสดุ 3) เดินไปบ้าน 4) ส่งพัสดุ</p>
+                </div>
+
+                <div class="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/50 space-y-1">
+                    <h4 class="font-bold text-purple-400 flex items-center gap-2">
+                        <i class="fa-solid fa-shapes"></i> 2. การจดจำรูปแบบ (Pattern Recognition)
+                    </h4>
+                    <p class="text-slate-400 text-xs">มองหาขั้นตอนซ้ำๆ เช่น เดินตรง 3 ช่องซ้ำกัน เพื่อนำคำสั่ง Loop มาย่อให้สั้นลง</p>
+                </div>
+
+                <div class="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/50 space-y-1">
+                    <h4 class="font-bold text-emerald-400 flex items-center gap-2">
+                        <i class="fa-solid fa-filter"></i> 3. การคิดเชิงนามธรรม (Abstraction)
+                    </h4>
+                    <p class="text-slate-400 text-xs">สังเกตเฉพาะจุดสำคัญ เช่น ตำแหน่งพัสดุและทิศทางหุ่น ตัดสิ่งไม่จำเป็นออก</p>
+                </div>
+
+                <div class="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/50 space-y-1">
+                    <h4 class="font-bold text-amber-400 flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired"></i> 4. การวางอัลกอริทึม (Algorithm)
+                    </h4>
+                    <p class="text-slate-400 text-xs">จัดเรียงบล็อกคำสั่งตามลำดับขั้นตอน เมื่อพบข้อผิดพลาด ให้กดทีละสเต็ปเพื่อแก้ไข (Debugging)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: VICTORY CELEBRATION -->
+    <div id="victoryModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl flex flex-col items-center space-y-4">
+            <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-3xl border border-emerald-500/40 animate-bounce">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            
+            <div>
+                <h3 class="text-2xl font-bold text-white">ภารกิจสำเร็จ! 🎉</h3>
+                <p class="text-sm text-slate-300 mt-1" id="victoryMsg">หุ่นจิ๋วส่งพัสดุเรียบร้อยแล้ว!</p>
+            </div>
+
+            <!-- Stars Display -->
+            <div id="victoryStars" class="flex text-amber-400 text-3xl space-x-2 my-2">
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+            </div>
+
+            <!-- Stat Summary -->
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3 w-full grid grid-cols-2 gap-2 text-xs text-slate-300">
+                <div class="p-2 bg-slate-900/60 rounded-xl">
+                    <span class="block text-slate-400">คำสั่งที่ใช้</span>
+                    <strong id="usedCmdCount" class="text-sm font-bold text-sky-400">0 บล็อก</strong>
+                </div>
+                <div class="p-2 bg-slate-900/60 rounded-xl">
+                    <span class="block text-slate-400">เป้าหมายที่แนะนำ</span>
+                    <strong id="optimalCmdCount" class="text-sm font-bold text-amber-400">≤ 4 บล็อก</strong>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3 w-full pt-2">
+                <button onclick="resetSim(); toggleModal('victoryModal');" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 rounded-xl font-medium text-sm transition">
+                    <i class="fa-solid fa-rotate-left mr-1"></i>ลองอีกครั้ง
+                </button>
+                <button id="nextLevelBtn" onclick="nextLevel()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-600/30 transition">
+                    ด่านถัดไป <i class="fa-solid fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME ENGINE SCRIPT -->
+    <script>
+        /* ==================== GAME STATE & CONFIG ==================== */
+        let soundEnabled = true;
+        let audioCtx = null;
+        let simInterval = null;
+        let isRunning = false;
+        let currentStepIndex = 0;
+        let simSpeed = 600; // ms per step
+
+        // Game Grid State
+        let currentLevelIndex = 0;
+        let gridRows = 5;
+        let gridCols = 5;
+
+        // Robot State (0 = UP, 1 = RIGHT, 2 = DOWN, 3 = LEFT)
+        const DIR_VECTORS = [
+            { r: -1, c: 0, deg: 0 },   // UP
+            { r: 0, c: 1, deg: 90 },   // RIGHT
+            { r: 1, c: 0, deg: 180 },  // DOWN
+            { r: 0, c: -1, deg: 270 }  // LEFT
+        ];
+
+        let robot = {
+            r: 0,
+            c: 0,
+            dir: 1,
+            hasParcel: false,
+            deliveredParcels: 0
+        };
+
+        let initialRobotState = { r: 0, c: 0, dir: 1 };
+
+        // Grid Elements
+        let parcels = [];
+        let destinations = [];
+        let gateOpen = false;
+
+        // Program Commands Queue
+        let commandQueue = [];
+
+        /* ==================== LEVEL DEFINITIONS (เล่นง่ายขึ้น) ==================== */
+        const LEVELS = [
+            {
+                id: 1,
+                name: "ด่านที่ 1: เดินตรงส่งของ (ระดับง่ายมาก)",
+                desc: "เดินตรงไปเก็บพัสดุ แล้วเดินหน้าต่อเพื่อไปส่งที่บ้านเป้าหมาย",
+                hint: "💡 **ขั้นตอน:** เดินหน้า 2 ครั้ง ➔ เก็บพัสดุ ➔ เดินหน้า 2 ครั้ง ➔ ส่งพัสดุ",
+                rows: 1,
+                cols: 5,
+                robot: { r: 0, c: 0, dir: 1 },
+                parcels: [{ r: 0, c: 2 }],
+                destinations: [{ r: 0, c: 4 }],
+                obstacles: [],
+                optimalBlocks: 4,
+                allowLoop: false
+            },
+            {
+                id: 2,
+                name: "ด่านที่ 2: ฝึกเลี้ยวซ้ายขวา",
+                desc: "เดินหน้าไปเก็บพัสดุ แล้วเลี้ยวขวาเพื่อนำพัสดุไปส่งที่บ้าน",
+                hint: "💡 **ขั้นตอน:** เดินหน้า 2 ครั้ง ➔ เก็บพัสดุ ➔ เลี้ยวขวา ➔ เดินหน้า 2 ครั้ง ➔ ส่งพัสดุ",
+                rows: 4,
+                cols: 4,
+                robot: { r: 0, c: 0, dir: 1 },
+                parcels: [{ r: 0, c: 2 }],
+                destinations: [{ r: 2, c: 2 }],
+                obstacles: [],
+                optimalBlocks: 6,
+                allowLoop: false
+            },
+            {
+                id: 3,
+                name: "ด่านที่ 3: หลบสิ่งกีดขวาง",
+                desc: "มีสิ่งกีดขวางขวางทาง ให้วางแผนเลี้ยวหลบเพื่อไปส่งพัสดุให้สำเร็จ",
+                hint: "💡 **ขั้นตอน:** เลี้ยวขวา ➔ เดินหน้า ➔ เลี้ยวซ้าย ➔ เดินหน้า ➔ เก็บพัสดุ ➔ เดินหน้า ➔ ส่งพัสดุ",
+                rows: 4,
+                cols: 4,
+                robot: { r: 0, c: 0, dir: 1 },
+                parcels: [{ r: 1, c: 2 }],
+                destinations: [{ r: 1, c: 3 }],
+                obstacles: [{ r: 0, c: 1 }, { r: 0, c: 2 }],
+                optimalBlocks: 7,
+                allowLoop: false
+            },
+            {
+                id: 4,
+                name: "ด่านที่ 4: สวิตช์เปิดประตู",
+                desc: "เดินไปเหยียบบนสวิตช์ 🔘 เพื่อเปิดประตูลูกกรงก่อนที่จะผ่านไปส่งของได้",
+                hint: "💡 **ขั้นตอน:** เดินไปเหยียบสวิตช์ที่แถวล่าง ➔ เลี้ยวกลับเดินไปเก็บพัสดุ ➔ เดินผ่านประตูที่เปิดแล้วไปส่งของ",
+                rows: 5,
+                cols: 5,
+                robot: { r: 2, c: 0, dir: 1 },
+                parcels: [{ r: 0, c: 2 }],
+                destinations: [{ r: 2, c: 4 }],
+                switchPos: { r: 4, c: 2 },
+                gatePos: { r: 2, c: 3 },
+                obstacles: [{ r: 1, c: 3 }, { r: 3, c: 3 }],
+                optimalBlocks: 11,
+                allowLoop: false
+            },
+            {
+                id: 5,
+                name: "ด่านที่ 5: ใช้คำสั่งวนซ้ำ (Loop)",
+                desc: "ใช้บล็อกคำสั่ง 'วนซ้ำ (Loop)' เพื่อประหยัดคำสั่งในการเดินระยะยาว",
+                hint: "💡 **ขั้นตอน:** ใช้บล็อก 'วนซ้ำ 3 รอบ' ให้เดินหน้าไปเก็บพัสดุ แล้วใช้ 'วนซ้ำ 3 รอบ' เดินไปส่งของ",
+                rows: 5,
+                cols: 5,
+                robot: { r: 1, c: 0, dir: 1 },
+                parcels: [{ r: 1, c: 3 }],
+                destinations: [{ r: 4, c: 3 }],
+                obstacles: [],
+                optimalBlocks: 6,
+                allowLoop: true
+            }
+        ];
+
+        /* ==================== SOUND SYNTHESIS ==================== */
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            if (soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-rose-400';
+            }
+        }
+
+        function playBeep(freq, duration = 0.1, type = 'sine') {
+            if (!soundEnabled) return;
+            initAudio();
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function playSoundEffect(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (type === 'move') playBeep(320, 0.08, 'triangle');
+            else if (type === 'turn') playBeep(450, 0.06, 'sine');
+            else if (type === 'pick') {
+                playBeep(523.25, 0.1, 'sine');
+                setTimeout(() => playBeep(659.25, 0.15, 'sine'), 80);
+            } else if (type === 'drop') {
+                playBeep(659.25, 0.1, 'sine');
+                setTimeout(() => playBeep(880, 0.2, 'sine'), 100);
+            } else if (type === 'crash') {
+                playBeep(120, 0.25, 'sawtooth');
+            } else if (type === 'victory') {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((n, idx) => {
+                    setTimeout(() => playBeep(n, 0.18, 'sine'), idx * 120);
+                });
+            }
+        }
+
+        /* ==================== INITIALIZATION & RENDERING ==================== */
+        window.onload = function() {
+            loadLevel(0);
+            renderLevelList();
+            setupParticleCanvas();
+        };
+
+        function loadLevel(idx) {
+            resetSim();
+            currentLevelIndex = idx;
+            const lvl = LEVELS[idx];
+            gridRows = lvl.rows;
+            gridCols = lvl.cols;
+
+            // Setup Robot
+            robot = { ...lvl.robot, hasParcel: false, deliveredParcels: 0 };
+            initialRobotState = { ...lvl.robot };
+
+            // Setup Items
+            parcels = lvl.parcels.map(p => ({ ...p, picked: false }));
+            destinations = lvl.destinations.map(d => ({ ...d, filled: false }));
+            gateOpen = false;
+
+            // Header info
+            document.getElementById('levelDisplay').innerText = `ด่านที่ ${lvl.id}`;
+            document.getElementById('stageTitle').innerText = lvl.name;
+            document.getElementById('stageGoalText').innerText = lvl.desc;
+            document.getElementById('optimalCmdCount').innerText = `≤ ${lvl.optimalBlocks} บล็อก`;
+            document.getElementById('targetBlocksText').innerHTML = `<i class="fa-solid fa-code text-indigo-400 mr-1"></i> คำสั่งแนะนำ: ≤ ${lvl.optimalBlocks} บล็อก`;
+            document.getElementById('hintText').innerHTML = lvl.hint;
+            
+            // Loop button state
+            const loopBtn = document.getElementById('loopBtn');
+            if (lvl.allowLoop) {
+                loopBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                loopBtn.disabled = false;
+            } else {
+                loopBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                loopBtn.disabled = true;
+            }
+
+            updateParcelStatusText();
+            renderGrid();
+        }
+
+        function showHintModal() {
+            toggleModal('hintModal');
+        }
+
+        function updateParcelStatusText() {
+            const lvl = LEVELS[currentLevelIndex];
+            document.getElementById('parcelCountText').innerHTML = 
+                `<i class="fa-solid fa-cube text-amber-400 mr-1"></i> พัสดุ: ${robot.deliveredParcels}/${lvl.destinations.length}`;
+        }
+
+        function renderGrid() {
+            const lvl = LEVELS[currentLevelIndex];
+            const gridBoard = document.getElementById('gridBoard');
+            gridBoard.style.gridTemplateColumns = `repeat(${gridCols}, minmax(0, 1fr))`;
+            gridBoard.innerHTML = '';
+
+            // Forward Target Cell Calculation
+            const vec = DIR_VECTORS[robot.dir];
+            const frontR = robot.r + vec.r;
+            const frontC = robot.c + vec.c;
+
+            for (let r = 0; r < gridRows; r++) {
+                for (let c = 0; c < gridCols; c++) {
+                    const cell = document.createElement('div');
+                    cell.id = `cell-${r}-${c}`;
+                    cell.className = `w-12 h-12 sm:w-16 sm:h-16 bg-slate-900 border border-slate-800/80 rounded-xl flex items-center justify-center relative shadow-sm transition-all`;
+
+                    const isFrontTarget = (r === frontR && c === frontC);
+                    const isObstacle = lvl.obstacles?.some(o => o.r === r && o.c === c);
+                    const parcel = parcels.find(p => p.r === r && p.c === c && !p.picked);
+                    const dest = destinations.find(d => d.r === r && d.c === c);
+                    const isSwitch = lvl.switchPos && lvl.switchPos.r === r && lvl.switchPos.c === c;
+                    const isGate = lvl.gatePos && lvl.gatePos.r === r && lvl.gatePos.c === c;
+
+                    // Highlight Front Target Cell
+                    if (isFrontTarget && !isObstacle) {
+                        cell.classList.add('target-glow', 'border-sky-400');
+                    }
+
+                    // Render background features
+                    if (isObstacle) {
+                        cell.classList.add('bg-slate-950/90', 'border-rose-900/40');
+                        cell.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-500 text-lg sm:text-2xl animate-pulse"></i>`;
+                    } else if (isSwitch) {
+                        const activeClass = gateOpen ? 'bg-emerald-500/20 border-emerald-500/50' : 'bg-amber-500/20 border-amber-500/50';
+                        cell.classList.add(activeClass);
+                        cell.innerHTML = `<i class="fa-solid fa-toggle-on ${gateOpen ? 'text-emerald-400' : 'text-amber-400'} text-xl sm:text-2xl"></i>`;
+                    } else if (isGate) {
+                        if (!gateOpen) {
+                            cell.classList.add('bg-slate-950', 'border-rose-600/60');
+                            cell.innerHTML = `<i class="fa-solid fa-lock text-rose-400 text-lg sm:text-xl"></i>`;
+                        } else {
+                            cell.classList.add('bg-emerald-950/30', 'border-emerald-600/40');
+                            cell.innerHTML = `<i class="fa-solid fa-lock-open text-emerald-400 text-lg sm:text-xl"></i>`;
+                        }
+                    } else if (dest) {
+                        cell.classList.add('bg-indigo-950/40', 'border-indigo-500/40');
+                        if (dest.filled) {
+                            cell.innerHTML = `<i class="fa-solid fa-house-circle-check text-emerald-400 text-2xl sm:text-3xl"></i>`;
+                        } else {
+                            cell.innerHTML = `<i class="fa-solid fa-house-flag text-indigo-400 text-2xl sm:text-3xl animate-bounce"></i>`;
+                        }
+                    } else if (parcel) {
+                        cell.classList.add('bg-amber-950/30', 'border-amber-500/30');
+                        cell.innerHTML = `<i class="fa-solid fa-box text-amber-400 text-xl sm:text-2xl drop-shadow-md"></i>`;
+                    } else if (isFrontTarget) {
+                        // Small subtle direction arrow on front empty cell
+                        cell.innerHTML = `<i class="fa-solid fa-location-arrow text-sky-400/40 text-xs sm:text-sm"></i>`;
+                    }
+
+                    // Render Robot
+                    if (robot.r === r && robot.c === c) {
+                        const robEl = document.createElement('div');
+                        const deg = DIR_VECTORS[robot.dir].deg;
+                        robEl.className = 'robot-img absolute inset-0 flex items-center justify-center z-10';
+                        robEl.style.transform = `rotate(${deg}deg)`;
+                        
+                        // Carrying badge
+                        const parcelBadge = robot.hasParcel ? `<span class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 rounded-full w-4 h-4 text-[9px] flex items-center justify-center font-bold"><i class="fa-solid fa-box"></i></span>` : '';
+
+                        robEl.innerHTML = `
+                            <div class="relative bg-blue-600 text-white w-9 h-9 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/40 border-2 border-blue-300">
+                                <i class="fa-solid fa-robot text-base sm:text-2xl"></i>
+                                <div class="absolute -top-2 w-3 h-3 bg-amber-400 rounded-full border-2 border-slate-900 flex items-center justify-center">
+                                    <i class="fa-solid fa-chevron-up text-[7px] text-slate-950 font-bold"></i>
+                                </div>
+                                ${parcelBadge}
+                            </div>
+                        `;
+                        cell.appendChild(robEl);
+                    }
+
+                    gridBoard.appendChild(cell);
+                }
+            }
+        }
+
+        /* ==================== COMMAND MANAGEMENT ==================== */
+        function addCommand(type, count = 1) {
+            if (isRunning) return;
+            if (type === 'loop') {
+                commandQueue.push({ type: 'loop', iterations: count });
+            } else {
+                commandQueue.push({ type: type });
+            }
+            playSoundEffect('turn');
+            renderCommandQueue();
+        }
+
+        function addLoopCommand() {
+            const countStr = prompt("ต้องการวนซ้ำกี่รอบ? (2 - 4 รอบ)", "2");
+            const count = parseInt(countStr);
+            if (count >= 2 && count <= 4) {
+                addCommand('loop', count);
+            }
+        }
+
+        function undoLastCommand() {
+            if (isRunning || commandQueue.length === 0) return;
+            commandQueue.pop();
+            playSoundEffect('move');
+            renderCommandQueue();
+        }
+
+        function removeCommand(idx) {
+            if (isRunning) return;
+            commandQueue.splice(idx, 1);
+            playSoundEffect('move');
+            renderCommandQueue();
+        }
+
+        function clearCommands() {
+            if (isRunning) return;
+            commandQueue = [];
+            renderCommandQueue();
+        }
+
+        function renderCommandQueue() {
+            const container = document.getElementById('commandContainer');
+            const queueCount = document.getElementById('queueCount');
+            
+            queueCount.innerText = `${getFlattenedCommands().length} คำสั่ง`;
+
+            if (commandQueue.length === 0) {
+                container.innerHTML = `
+                    <div id="emptyPlaceholder" class="h-28 flex flex-col items-center justify-center text-slate-500 space-y-1">
+                        <i class="fa-solid fa-arrow-pointer text-2xl mb-1 text-slate-600"></i>
+                        <span class="text-xs">กดปุ่มสีข้างบนเพื่อเรียงคำสั่งให้หุ่นจิ๋ว</span>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            commandQueue.forEach((cmd, idx) => {
+                const item = document.createElement('div');
+                item.className = `p-2.5 rounded-xl border flex items-center justify-between text-xs sm:text-sm font-semibold transition ${
+                    currentStepIndex === idx && isRunning ? 'bg-blue-600/30 border-blue-400 text-white pulse-glow' : 'bg-slate-800/80 border-slate-700/70 text-slate-200'
+                }`;
+
+                let icon = '';
+                let label = '';
+                let colorClass = '';
+
+                if (cmd.type === 'move') {
+                    icon = 'fa-arrow-up';
+                    label = 'เดินหน้า';
+                    colorClass = 'text-blue-400';
+                } else if (cmd.type === 'left') {
+                    icon = 'fa-rotate-left';
+                    label = 'เลี้ยวซ้าย';
+                    colorClass = 'text-amber-400';
+                } else if (cmd.type === 'right') {
+                    icon = 'fa-rotate-right';
+                    label = 'เลี้ยวขวา';
+                    colorClass = 'text-emerald-400';
+                } else if (cmd.type === 'pickup') {
+                    icon = 'fa-hand-holding-box';
+                    label = 'เก็บพัสดุ';
+                    colorClass = 'text-purple-400';
+                } else if (cmd.type === 'dropoff') {
+                    icon = 'fa-house-circle-check';
+                    label = 'ส่งพัสดุ';
+                    colorClass = 'text-rose-400';
+                } else if (cmd.type === 'loop') {
+                    icon = 'fa-arrows-spin';
+                    label = `วนซ้ำ ${cmd.iterations} รอบ`;
+                    colorClass = 'text-teal-400';
+                }
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <span class="text-slate-500 font-mono text-xs w-4">${idx + 1}.</span>
+                        <i class="fa-solid ${icon} ${colorClass} text-base"></i>
+                        <span>${label}</span>
+                    </div>
+                    <button onclick="removeCommand(${idx})" class="text-slate-500 hover:text-rose-400 transition p-1">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                `;
+
+                container.appendChild(item);
+            });
+        }
+
+        function getFlattenedCommands() {
+            let list = [];
+            commandQueue.forEach(cmd => {
+                if (cmd.type === 'loop') {
+                    const lastCmd = list[list.length - 1] || { type: 'move' };
+                    for (let i = 0; i < cmd.iterations - 1; i++) {
+                        list.push({ ...lastCmd });
+                    }
+                } else {
+                    list.push(cmd);
+                }
+            });
+            return list;
+        }
+
+        /* ==================== SIMULATION ENGINE ==================== */
+        function setSpeed(spd) {
+            simSpeed = spd;
+            document.querySelectorAll('#spd1, #spd2, #spd3').forEach(btn => {
+                btn.className = 'px-2 py-1 rounded-lg hover:text-white';
+            });
+            if (spd === 600) document.getElementById('spd1').className = 'px-2 py-1 rounded-lg bg-blue-600 text-white font-medium';
+            if (spd === 350) document.getElementById('spd2').className = 'px-2 py-1 rounded-lg bg-blue-600 text-white font-medium';
+            if (spd === 180) document.getElementById('spd3').className = 'px-2 py-1 rounded-lg bg-blue-600 text-white font-medium';
+        }
+
+        function showStatusToast(text, isError = false) {
+            const toast = document.getElementById('statusToast');
+            const toastText = document.getElementById('statusToastText');
+            toast.classList.remove('hidden');
+            toastText.innerText = text;
+
+            if (isError) {
+                toast.className = 'absolute top-4 left-1/2 transform -translate-x-1/2 bg-rose-900/90 border border-rose-600 text-white px-4 py-2 rounded-full text-xs sm:text-sm shadow-xl font-medium flex items-center space-x-2 transition-all shake';
+            } else {
+                toast.className = 'absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-800/95 border border-slate-700 text-slate-200 px-4 py-2 rounded-full text-xs sm:text-sm shadow-xl font-medium flex items-center space-x-2 transition-all';
+            }
+        }
+
+        function hideStatusToast() {
+            document.getElementById('statusToast').classList.add('hidden');
+        }
+
+        function runSim() {
+            if (isRunning) return;
+            const flatCmds = getFlattenedCommands();
+            if (flatCmds.length === 0) {
+                showStatusToast("⚠️ กดเลือกบล็อกคำสั่งก่อนเริ่มเดินนะครับ!", true);
+                setTimeout(hideStatusToast, 2000);
+                return;
+            }
+
+            isRunning = true;
+            currentStepIndex = 0;
+            showStatusToast("🚀 หุ่นยนต์กำลังทำงาน...");
+
+            simInterval = setInterval(() => {
+                if (currentStepIndex >= flatCmds.length) {
+                    stopSim();
+                    checkStageOutcome();
+                    return;
+                }
+                executeSingleStep(flatCmds[currentStepIndex]);
+                currentStepIndex++;
+                renderCommandQueue();
+            }, simSpeed);
+        }
+
+        function stepSim() {
+            if (isRunning) return;
+            const flatCmds = getFlattenedCommands();
+            if (currentStepIndex >= flatCmds.length) {
+                showStatusToast("ครบทุกขั้นตอนคำสั่งแล้วครับ");
+                checkStageOutcome();
+                return;
+            }
+            executeSingleStep(flatCmds[currentStepIndex]);
+            currentStepIndex++;
+            renderCommandQueue();
+        }
+
+        function executeSingleStep(cmd) {
+            const lvl = LEVELS[currentLevelIndex];
+
+            if (cmd.type === 'left') {
+                robot.dir = (robot.dir + 3) % 4; // Turn CCW
+                playSoundEffect('turn');
+            } else if (cmd.type === 'right') {
+                robot.dir = (robot.dir + 1) % 4; // Turn CW
+                playSoundEffect('turn');
+            } else if (cmd.type === 'move') {
+                const vec = DIR_VECTORS[robot.dir];
+                const nextR = robot.r + vec.r;
+                const nextC = robot.c + vec.c;
+
+                // Boundary check
+                if (nextR < 0 || nextR >= gridRows || nextC < 0 || nextC >= gridCols) {
+                    playSoundEffect('crash');
+                    triggerCrash("💥 ชนขอบแผนที่! กดปุ่ม 'รีเซ็ต' แล้วลองใหม่นะครับ");
+                    return;
+                }
+
+                // Obstacle check
+                if (lvl.obstacles?.some(o => o.r === nextR && o.c === nextC)) {
+                    playSoundEffect('crash');
+                    triggerCrash("⚠️ ชนสิ่งกีดขวาง! เลี้ยวหลบทางอื่นดูนะ");
+                    return;
+                }
+
+                // Gate check
+                if (lvl.gatePos && lvl.gatePos.r === nextR && lvl.gatePos.c === nextC && !gateOpen) {
+                    playSoundEffect('crash');
+                    triggerCrash("🔒 ประตูลูกกรงปิดอยู่! ต้องเหยียบสวิตช์สีส้มก่อน");
+                    return;
+                }
+
+                robot.r = nextR;
+                robot.c = nextC;
+                playSoundEffect('move');
+
+                // Check switch trigger
+                if (lvl.switchPos && lvl.switchPos.r === robot.r && lvl.switchPos.c === robot.c) {
+                    gateOpen = true;
+                    playSoundEffect('drop');
+                    showStatusToast("🔘 เหยียบสวิตช์แล้ว! ประตูลูกกรงเปิดออก");
+                }
+
+            } else if (cmd.type === 'pickup') {
+                const parcel = parcels.find(p => p.r === robot.r && p.c === robot.c && !p.picked);
+                if (parcel) {
+                    if (robot.hasParcel) {
+                        showStatusToast("⚠️ หุ่นถือพัสดุได้ทีละ 1 ชิ้นนะครับ", true);
+                    } else {
+                        parcel.picked = true;
+                        robot.hasParcel = true;
+                        playSoundEffect('pick');
+                        showStatusToast("📦 เก็บพัสดุสำเร็จ!");
+                    }
+                } else {
+                    showStatusToast("❌ ช่องนี้ไม่มีพัสดุให้เก็บครับ", true);
+                }
+            } else if (cmd.type === 'dropoff') {
+                const dest = destinations.find(d => d.r === robot.r && d.c === robot.c);
+                if (dest) {
+                    if (robot.hasParcel) {
+                        robot.hasParcel = false;
+                        dest.filled = true;
+                        robot.deliveredParcels++;
+                        playSoundEffect('drop');
+                        updateParcelStatusText();
+                        showStatusToast("📮 ส่งมอบพัสดุเรียบร้อย!");
+                    } else {
+                        showStatusToast("❌ หุ่นยนต์ยังไม่ได้เก็บพัสดุมาเลย!", true);
+                    }
+                } else {
+                    showStatusToast("❌ ช่องนี้ไม่ใช่บ้านเป้าหมายส่งของ!", true);
+                }
+            }
+
+            renderGrid();
+        }
+
+        function triggerCrash(msg) {
+            stopSim();
+            showStatusToast(msg, true);
+            const gridBoard = document.getElementById('gridBoard');
+            gridBoard.classList.add('shake');
+            setTimeout(() => gridBoard.classList.remove('shake'), 500);
+        }
+
+        function stopSim() {
+            clearInterval(simInterval);
+            isRunning = false;
+        }
+
+        function resetSim() {
+            stopSim();
+            currentStepIndex = 0;
+            const lvl = LEVELS[currentLevelIndex];
+            robot = { ...initialRobotState, hasParcel: false, deliveredParcels: 0 };
+            parcels = lvl.parcels.map(p => ({ ...p, picked: false }));
+            destinations = lvl.destinations.map(d => ({ ...d, filled: false }));
+            gateOpen = false;
+            hideStatusToast();
+            updateParcelStatusText();
+            renderGrid();
+            renderCommandQueue();
+        }
+
+        function checkStageOutcome() {
+            const lvl = LEVELS[currentLevelIndex];
+            if (robot.deliveredParcels === lvl.destinations.length) {
+                // VICTORY!
+                playSoundEffect('victory');
+                triggerConfetti();
+
+                const usedCount = getFlattenedCommands().length;
+                document.getElementById('usedCmdCount').innerText = `${usedCount} บล็อก`;
+                document.getElementById('victoryMsg').innerText = `ยินดีด้วย! ส่งพัสดุสำเร็จเรียบร้อย!`;
+
+                // Calculate stars
+                const starDiv = document.getElementById('victoryStars');
+                let starCount = 1;
+                if (usedCount <= lvl.optimalBlocks) starCount = 3;
+                else if (usedCount <= lvl.optimalBlocks + 2) starCount = 2;
+
+                starDiv.innerHTML = '';
+                for (let i = 0; i < 3; i++) {
+                    if (i < starCount) {
+                        starDiv.innerHTML += `<i class="fa-solid fa-star text-amber-400"></i>`;
+                    } else {
+                        starDiv.innerHTML += `<i class="fa-regular fa-star text-slate-600"></i>`;
+                    }
+                }
+
+                toggleModal('victoryModal');
+            } else {
+                showStatusToast("❌ ยังส่งพัสดุไม่สำเร็จ ลองปรับคำสั่งแล้วรันอีกครั้งนะ!", true);
+            }
+        }
+
+        function nextLevel() {
+            toggleModal('victoryModal');
+            if (currentLevelIndex + 1 < LEVELS.length) {
+                loadLevel(currentLevelIndex + 1);
+            } else {
+                alert("🎉 สุดยอดมาก! คุณผ่านด่านทั้งหมดเรียบร้อยแล้ว!");
+            }
+        }
+
+        /* ==================== MODAL & UI UTILS ==================== */
+        function toggleModal(id) {
+            const el = document.getElementById(id);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                el.classList.add('flex');
+            } else {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            }
+        }
+
+        function renderLevelList() {
+            const grid = document.getElementById('levelGrid');
+            grid.innerHTML = '';
+            LEVELS.forEach((lvl, idx) => {
+                const item = document.createElement('div');
+                item.className = `p-4 rounded-2xl border bg-slate-800/60 border-slate-700/60 hover:border-blue-500 cursor-pointer transition flex flex-col justify-between space-y-2`;
+                item.onclick = () => {
+                    loadLevel(idx);
+                    toggleModal('levelModal');
+                };
+
+                item.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm text-slate-100">${lvl.name}</span>
+                        <span class="text-xs text-amber-400"><i class="fa-solid fa-star"></i> ≤ ${lvl.optimalBlocks} บล็อก</span>
+                    </div>
+                    <p class="text-xs text-slate-400">${lvl.desc}</p>
+                `;
+                grid.appendChild(item);
+            });
+        }
+
+        /* ==================== CONFETTI PARTICLES ==================== */
+        let confettiParticles = [];
+        function setupParticleCanvas() {
+            const canvas = document.getElementById('particleCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            });
+
+            function renderParticles() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                confettiParticles.forEach((p, index) => {
+                    p.y += p.speedY;
+                    p.x += p.speedX;
+                    p.rotation += p.spin;
+                    
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rotation * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    ctx.restore();
+
+                    if (p.y > canvas.height) confettiParticles.splice(index, 1);
+                });
+                requestAnimationFrame(renderParticles);
+            }
+            renderParticles();
+        }
+
+        function triggerConfetti() {
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+            for (let i = 0; i < 80; i++) {
+                confettiParticles.push({
+                    x: window.innerWidth / 2,
+                    y: window.innerHeight / 2,
+                    size: Math.random() * 8 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speedX: (Math.random() - 0.5) * 12,
+                    speedY: (Math.random() - 0.7) * 12,
+                    rotation: Math.random() * 360,
+                    spin: (Math.random() - 0.5) * 10
+                });
+            }
+        }
+    </script>
+</body>
+</html>
